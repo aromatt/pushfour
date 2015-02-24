@@ -38,6 +38,7 @@ module PushFour
     # return false if invalid move
     #
     def apply_move(player, side, channel)
+      # TODO store this somewhere else
       dir_map = {
         left: [channel * @columns, 1],
         right: [(channel + 1) * @columns - 1, -1],
@@ -99,6 +100,26 @@ module PushFour
       poses
     end
 
+    # search in an outward spiral for closest neighbor
+    # return distance to closest neighbor (including edges of the board)
+    def distance_to(pos)
+      # next to an edge?
+      if row_for(pos) == 0 || row_for(pos == @rows - 1) ||
+        column_for(pos) == 0 || column_for(pos == @columns - 1)
+        return 0
+      end
+
+    end
+
+    # TODO should probably draw a border around the whole board
+    def neighbors_at_dist(pos, dist)
+      # TODO these masks are shaped like diamonds.
+      # let x & y be all the pairs of values that add up to
+      # dist, and put a 1 at each position (pos + [x,y])
+      # while building mask, reject positions that are off the board
+
+    end
+
     def picture_for_mask(mask)
       string = ''
       (@columns * @rows).times do |i|
@@ -130,7 +151,7 @@ module PushFour
     # returns side (:left, etc) and channel to get a piece into <pos>
     #
     def get_move(pos)
-
+      # TODO
     end
 
     # input: two bit-string positions
@@ -152,6 +173,7 @@ module PushFour
       end
     end
 
+    # TODO why not just check the board string?
     def pos_occupied?(pos)
       if ((1 << pos) & (blue_mask | red_mask | rock_mask)) > 0
         puts "#{pos} is occupied" if @debug
