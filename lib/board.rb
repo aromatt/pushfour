@@ -8,7 +8,8 @@ module PushFour
 
     attr_reader :rows, :columns, :board_string
 
-    def initialize(rows = 8, columns = 8, init_string = nil)
+    def initialize(rows = 8, columns = 8, win_len = 4, init_string = nil)
+      @win_len = win_len
       @rows = rows
       @columns = columns
       if init_string
@@ -18,9 +19,7 @@ module PushFour
           @board_string = init_string
         end
       else
-        puts 'pp'
         @board_string ||= '+' * (rows * columns)
-        add_random_rocks!
       end
     end
 
@@ -61,6 +60,75 @@ module PushFour
       cur_pos
     end
 
+    # provide a bit-string position
+    # returns array of masks representing wins containing <pos>
+    #
+    def raw_wins_for(pos)
+      wins = []
+
+      [
+        1,            # horizontal
+        @columns,     # vertical
+        @columns + 1, # /
+        @columns - 1  # \
+      ].each do |period|
+        mask = 0
+        @win_len.times { |i| mask |= (1 << (i * period)) }
+        @win_len.times do |i|
+          new_mask = (mask << (pos - (@win_len - 1 - i) * period))
+          wins << new_mask
+        end
+      end
+
+      wins.reject do |w|
+        poses = positions_for(w)
+        poses.count < @win_len || !contiguous?(poses)
+      end
+    end
+
+    # returns bit-string positions
+    def positions_for(mask)
+      poses = []
+      check_mask = 1
+      (@rows * @columns).times do |i|
+        if mask & check_mask > 0
+          poses << i
+        end
+        check_mask <<= 1
+      end
+      poses
+    end
+
+    def picture_for_mask(mask)
+      string = ''
+      (@columns * @rows).times do |i|
+        occ = (mask & (1 << i)) > 0
+        string << (((mask & (1 << i)) > 0) ? '1' : '0')
+        string << "\n" if column_of(i) == @columns - 1
+      end
+      string
+    end
+
+    def row_of(pos)
+      pos / @columns
+    end
+
+    def column_of(pos)
+      pos % @columns
+    end
+
+    # positions is an array of bit-string positions
+    def contiguous?(positions)
+      c = true
+      (positions.count - 1).times do |i|
+        x, y = xy_delta(positions[i], positions[i + 1])
+        return false if x.abs > 1 || y.abs > 1
+      end
+      return true
+    end
+
+    # returns side (:left, etc) and channel to get a piece into <pos>
+    #
     def get_move(pos)
 
     end
@@ -69,8 +137,8 @@ module PushFour
     # output: x and y deltas
     #
     def xy_delta(first, second)
-      x = (second % @columns - first % @columns )
-      y = second / @columns - first / @columns
+      x = column_of(second) - column_of(first)
+      y = row_of(second) - row_of(first)
       [x, y]
     end
 
