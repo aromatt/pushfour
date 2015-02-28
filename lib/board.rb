@@ -37,7 +37,7 @@ module PushFour
     #
     # return false if invalid move
     #
-    def apply_move(player, side, channel)
+    def apply_move!(player, side, channel)
       # TODO store this somewhere else
       dir_map = {
         left: [channel * @columns, 1],
@@ -113,11 +113,20 @@ module PushFour
 
     # TODO should probably draw a border around the whole board
     def neighbors_at_dist(pos, dist)
-      # TODO these masks are shaped like diamonds.
-      # let x & y be all the pairs of values that add up to
-      # dist, and put a 1 at each position (pos + [x,y])
-      # while building mask, reject positions that are off the board
+      puts "neighbors of pos #{pos}, dist #{dist}" if @debug
 
+      # TODO calculate these more efficiently
+
+      neighbors = []
+      dist.times do |a|
+        b = dist - a
+
+        neighbors << apply_delta(pos, a, b)
+        neighbors << apply_delta(pos, -b, a)
+        neighbors << apply_delta(pos, -a, -b)
+        neighbors << apply_delta(pos, b, -a)
+      end
+      neighbors.compact
     end
 
     def picture_for_mask(mask)
@@ -128,6 +137,10 @@ module PushFour
         string << "\n" if column_of(i) == @columns - 1
       end
       string
+    end
+
+    def pos_to_mask(*pos)
+      pos.inject(0) { |a, p|  a | (1 << p) }
     end
 
     def row_of(pos)
@@ -148,7 +161,8 @@ module PushFour
       return true
     end
 
-    # returns side (:left, etc) and channel to get a piece into <pos>
+    # returns a move that will get a piece into pos.
+    # a move is a side (e.g. :left) and channel to get a piece into <pos>
     #
     def get_move(pos)
       # TODO
@@ -163,6 +177,16 @@ module PushFour
       [x, y]
     end
 
+    # Applies x and y to start and returns the resulting position
+    # return nil if off board
+    #
+    def apply_delta(pos, x, y)
+      puts "applying delta (#{x}, #{y}) to pos #{pos} which is at #{column_of pos}, #{row_of pos}" if @debug
+      return nil unless xy_on_board?(column_of(pos) + x, row_of(pos) + y)
+      result = pos + x + y * @columns
+      result
+    end
+
     def pos_on_board?(pos)
       if (pos >= 0) && (pos < @columns * @rows)
         puts "#{pos} is on the board" if @debug
@@ -171,6 +195,11 @@ module PushFour
         puts "#{pos} is not on the board" if @debug
         return false
       end
+    end
+
+    def xy_on_board?(x, y)
+      puts "xy_on_board? #{x}, #{y}" if @debug
+      ((0...@columns).cover? x) && ((0...@rows).cover? y)
     end
 
     # TODO why not just check the board string?
