@@ -13,7 +13,8 @@ module PushFour
       @rows = rows
       @columns = columns
       if init_string
-        if init_string.gsub(/[^rb#\+]/, '').length != @rows * @columns
+        init_string.gsub!(/[^rb#\+]|/, '')
+        if init_string.length != @rows * @columns
           fail "init board string must contain #{@rows} * #{@columns} chars"
         else
           @board_string = init_string
@@ -82,13 +83,13 @@ module PushFour
       end
 
       wins.reject do |w|
-        poses = positions_for(w)
+        poses = mask_to_pos(w)
         poses.count < @win_len || !contiguous?(poses)
       end
     end
 
     # returns bit-string positions
-    def positions_for(mask)
+    def mask_to_pos(mask)
       poses = []
       check_mask = 1
       (@rows * @columns).times do |i|
@@ -100,15 +101,77 @@ module PushFour
       poses
     end
 
+    def pos_to_mask(*pos)
+      pos.inject(0) { |a, p|  a | (1 << p) }
+    end
+
+    def xy_to_pos(x, y)
+      pos = x + y * @columns
+    end
+
     # search in an outward spiral for closest neighbor
     # return distance to closest neighbor (including edges of the board)
     def distance_to(pos)
+      puts "computing distance to #{pos}"
       # next to an edge?
-      if row_for(pos) == 0 || row_for(pos == @rows - 1) ||
-        column_for(pos) == 0 || column_for(pos == @columns - 1)
-        return 0
+      if row_of(pos) == 0 || row_of(pos) == @rows - 1 ||
+        column_of(pos) == 0 || column_of(pos) == @columns - 1
+        return 1
       end
 
+      # not next to an edge; find the closest neighbor.
+      done = false
+      dist = 1
+      while !done
+        neighbors = neighbors_at_dist(pos, dist)
+        if neighbors.count < dist * 4
+          puts "in distance_to, neighbor mask reached end of board at dist #{dist}" #if @debug
+          break
+        end
+        free_neighbors = (neighbors - mask_to_pos(occupied_mask))
+        occ_neighbors = neighbors - free_neighbors
+        if occ_neighbors.any?
+          puts "in distance_to, occ_neighbors at dist #{dist} are #{occ_neighbors}"
+          break
+        end
+        dist += 1
+      end
+      dist
+    end
+
+    # Takes in two positions
+    # Returns an array of paths (which are each an array of positions)
+    # Does not consider if paths consist entirely of valid moves, but
+    # does consider obstructions
+    def raw_shortest_paths(start, finish)
+      x, y = xy_delta(start, finish)
+      x_d = (x >= 0 ? 1 : - 1)
+      y_d = (y >= 0 ? 1 : - 1)
+
+      paths = []
+      permutations = ([:x] * x.abs + [:y] * y.abs).permutation.to_a.uniq.each do |perm|
+        puts "perm: #{perm}" if @debug
+        path = [start]
+        valid = true
+        perm.each do |dir|
+          next_pos = nil
+          if dir == :x
+            next_pos = apply_delta(path.last, x_d, 0)
+          else
+            next_pos = apply_delta(path.last, 0, y_d)
+          end
+          if pos_occupied? next_pos
+            puts "path is obstructed!" if @debug
+            valid = false
+            break
+          else
+            path << next_pos
+          end
+        end
+        puts "adding path: #{path.inspect}" if @debug
+        paths << path if valid
+      end
+      paths
     end
 
     # TODO should probably draw a border around the whole board
@@ -137,10 +200,6 @@ module PushFour
         string << "\n" if column_of(i) == @columns - 1
       end
       string
-    end
-
-    def pos_to_mask(*pos)
-      pos.inject(0) { |a, p|  a | (1 << p) }
     end
 
     def row_of(pos)
@@ -204,13 +263,12 @@ module PushFour
 
     # TODO why not just check the board string?
     def pos_occupied?(pos)
-      if ((1 << pos) & (blue_mask | red_mask | rock_mask)) > 0
-        puts "#{pos} is occupied" if @debug
-        return true
-      else
-        puts "#{pos} is open" if @debug
-        return false
-      end
+      fail "pos #{pos} not on board" unless pos_on_board? pos
+      @board_string[pos] != '+'
+    end
+
+    def occupied_mask
+      blue_mask | red_mask | rock_mask
     end
 
     def blue_mask
@@ -245,13 +303,16 @@ module PushFour
       end
     end
 
+    def add_rock!(pos)
+      @board_string[pos] = ROCK_CHAR
+    end
+
     def add_random_rocks!(num_rocks = nil)
 
       num_rocks ||= Math.sqrt(rows * columns).to_i / 2
 
       num_rocks.times do
-        pos = Random.rand(@board_string.length)
-        @board_string[pos] = ROCK_CHAR
+        add_rock! Random.rand(@board_string.length)
       end
     end
 
