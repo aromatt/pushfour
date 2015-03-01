@@ -6,7 +6,7 @@ module PushFour
 
   class Board
 
-    attr_reader :rows, :columns, :board_string
+    attr_accessor :rows, :columns, :win_len, :board_string
 
     def initialize(rows = 8, columns = 8, win_len = 4, init_string = nil)
       @win_len = win_len
@@ -133,41 +133,71 @@ module PushFour
     end
 
     # return distance to closest neighbor (including edges of the board)
+    # return nil if occupied or unreachable
     def distance_to(pos)
       puts "computing distance to #{pos}"
+      return nil if pos_occupied? pos
 
-      # next to an edge?
+      # next to any edges? then check those first
       edges = touching_edges(pos)
-      return 1 if edges.any?
+      edges.each do |edge|
+        puts "edge #{edge}"
+        side = opposite_side(edge)
+        channel = get_channel(pos, side)
+        return 1 if try_move(side, channel) == pos
+      end
+      puts "no edges worked"
 
       # not next to an edge; find the closest neighbor.
-      done = false
       dist = 1
-      while !done
+      loop do
         neighbors = neighbors_at_dist(pos, dist)
-        if neighbors.count < dist * 4
-          puts "in distance_to, neighbor mask reached end of board at dist #{dist}" #if @debug
-          break
-        end
+        paths_to_try = []
+
         free_neighbors = (neighbors - mask_to_pos(occupied_mask))
         occ_neighbors = neighbors - free_neighbors
-        if occ_neighbors.any?
-          puts "in distance_to, occ_neighbors at dist #{dist} are #{occ_neighbors}"
 
-          # Verify there is a valid path from an occ_neighbor to pos
-          occ_neighbors.each do |n|
-            paths = raw_shortest_paths(n, pos)
-            valid = true
-            paths.each do |step|
-              valid = find_move(step) # TODO need to pass temp board around
-            end
-          end
-
-          break
+        # Try building off of occupied positions
+        puts "in distance_to, occ_neighbors at dist #{dist} are #{occ_neighbors}"
+        occ_neighbors.each do |n|
+          paths_to_try += raw_shortest_paths(n, pos)
         end
+
+        # Try building off free neighbors on edges
+        puts "in distance_to, free_neighbors at dist #{dist} are #{free_neighbors}"
+        free_neighbors.each do |n|
+          if touching_edges(n)
+            paths_to_try += raw_shortest_paths(n, pos)
+          end
+        end
+
+        b_temp = Board.new(@rows, @columns, @win_len, @board_string.dup)
+        valid = true
+        paths_to_try.each do |path|
+          b_temp.board_string = self.board_string.dup
+          valid = true
+          puts "verifying path #{path.inspect}"
+          path.each do |step|
+            move = find_move(step)
+            valid &&= move && b_temp.apply_move!('#', *move)
+            unless valid
+              puts "path #{step} invalid; breaking to next path"
+              break
+            end
+          end # each step
+          if valid
+            puts "found valid path #{path.inspect}"
+            if pos_occupied?(path.first)
+              puts "removing #{path.first} from #{path} because it's occupied"
+              path.shift
+            end
+            return path.count
+          end
+        end # each path
         dist += 1
-      end
-      dist
+        break if dist == [@rows, @columns].max
+      end # loop do (incr dist)
+      nil
     end
 
     # Takes in two positions
@@ -210,7 +240,7 @@ module PushFour
     def neighbors_at_dist(pos, dist)
       puts "neighbors of pos #{pos}, dist #{dist}" if @debug
 
-      # TODO calculate these more efficiently
+      # TODO calculate these more efficiently?
 
       neighbors = []
       dist.times do |a|
@@ -350,7 +380,7 @@ module PushFour
 
     # TODO why not just check the board string?
     def pos_occupied?(pos)
-      #puts "Determining if #{pos} is occupied"
+      #puts "Determining if #{pos} is occupied. value of pos in board_string is #{@board_string[pos]}"
       fail "pos #{pos} not on board" unless pos_on_board? pos
       @board_string[pos] != '+'
     end
