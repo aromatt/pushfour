@@ -1,0 +1,53 @@
+++++
++#+#
+++#+
++++#
+
+Finding path to 0
+path to 0 is [0]
+
+Finding path to 1
+path to 1 is [1]
+
+Finding path to 2
+path to 2 is [6, 2]
+
+Finding path to 3
+path to 3 is [3]
+
+Finding path to 4
+path to 4 is [4]
+
+Finding path to 5
+path to 5 is 
+
+Finding path to 6
+path to 6 is [6]
+
+Finding path to 7
+path to 7 is 
+
+Finding path to 8
+path to 8 is [12, 8]
+
+Finding path to 9
+path to 9 is [9]
+
+Finding path to 10
+path to 10 is 
+
+Finding path to 11
+path to 11 is [11]
+
+Finding path to 12
+path to 12 is [12]
+
+Finding path to 13
+path to 13 is [9, 13]
+
+Finding path to 14
+path to 14 is [14]
+
+Finding path to 15
+path to 15 is 
+

@@ -16,10 +16,9 @@ b = Board.new(size, size, 4, string)
 puts b.board_picture
 puts
 [
-  #0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
-  13
+  0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
 ].each do |pos|
-  puts "Finding distance to #{pos}"
-  puts "distance to #{pos} is #{b.distance_to pos}"
+  puts "Finding path to #{pos}"
+  puts "path to #{pos} is #{b.find_path pos}"
   puts
 end

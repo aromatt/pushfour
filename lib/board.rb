@@ -134,19 +134,20 @@ module PushFour
 
     # return distance to closest neighbor (including edges of the board)
     # return nil if occupied or unreachable
-    def distance_to(pos)
-      puts "computing distance to #{pos}"
+    def find_path(pos)
+      debug = false
+      puts "computing distance to #{pos}" if debug
       return nil if pos_occupied? pos
 
       # next to any edges? then check those first
       edges = touching_edges(pos)
       edges.each do |edge|
-        puts "edge #{edge}"
+        puts "edge #{edge}" if debug
         side = opposite_side(edge)
         channel = get_channel(pos, side)
-        return 1 if try_move(side, channel) == pos
+        return [pos] if try_move(side, channel) == pos
       end
-      puts "no edges worked"
+      puts "no edges worked" if debug
 
       # not next to an edge; find the closest neighbor.
       dist = 1
@@ -158,40 +159,38 @@ module PushFour
         occ_neighbors = neighbors - free_neighbors
 
         # Try building off of occupied positions
-        puts "in distance_to, occ_neighbors at dist #{dist} are #{occ_neighbors}"
+        puts "in distance_to, occ_neighbors at dist #{dist} are #{occ_neighbors}" if debug
         occ_neighbors.each do |n|
-          paths_to_try += raw_shortest_paths(n, pos)
+          paths_to_try += raw_shortest_paths(n, pos).map { |p| p.shift; p }
         end
 
         # Try building off free neighbors on edges
-        puts "in distance_to, free_neighbors at dist #{dist} are #{free_neighbors}"
+        puts "in distance_to, free_neighbors at dist #{dist} are #{free_neighbors}" if debug
         free_neighbors.each do |n|
           if touching_edges(n)
             paths_to_try += raw_shortest_paths(n, pos)
           end
         end
 
+        # Try all the paths we could find at this dist
         b_temp = Board.new(@rows, @columns, @win_len, @board_string.dup)
         valid = true
         paths_to_try.each do |path|
           b_temp.board_string = self.board_string.dup
           valid = true
-          puts "verifying path #{path.inspect}"
+          puts "verifying path #{path.inspect}" if debug
           path.each do |step|
-            move = find_move(step)
+            move = b_temp.find_move(step)
+            puts "  move: #{move}" if debug
             valid &&= move && b_temp.apply_move!('#', *move)
             unless valid
-              puts "path #{step} invalid; breaking to next path"
+              puts "path #{step} invalid; breaking to next path" if debug
               break
             end
           end # each step
           if valid
-            puts "found valid path #{path.inspect}"
-            if pos_occupied?(path.first)
-              puts "removing #{path.first} from #{path} because it's occupied"
-              path.shift
-            end
-            return path.count
+            puts "found valid path #{path.inspect}" if debug
+            return path
           end
         end # each path
         dist += 1
@@ -308,6 +307,8 @@ module PushFour
     # a move is a side (e.g. :left) and channel to get a piece into <pos>
     #
     def find_move(pos)
+      debug = false
+      puts "  finding move to #{pos}" if debug
       edges = touching_edges(pos)
 
       # If a position is next to an edge, try that first
@@ -328,13 +329,14 @@ module PushFour
 
           # get direction from neighbor to pos, e.g. :left
           side = direction_to(n, pos)
-          #puts "in find_move, neighbor, pos: #{n}, #{pos}"
+          puts "    in find_move, neighbor, pos: #{n}, #{pos}" if debug
           # TODO remove
           unless get_channel(pos, side) == get_channel(n, side)
             fail "neighbor and pos not in same channel"
           end
 
           channel = get_channel(pos, side)
+          puts "    in find_move, channel: #{channel}, side: #{side}" if debug
 
           if pos == try_move(side, channel)
             return [side, channel]
