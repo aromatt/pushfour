@@ -1,0 +1,53 @@
+++++
++#+#
+++#+
++++#
+
+Finding move for 0
+move to 0 is [:bottom, 0]
+
+Finding move for 1
+move to 1 is [:top, 1]
+
+Finding move for 2
+move to 2 is 
+
+Finding move for 3
+move to 3 is [:left, 0]
+
+Finding move for 4
+move to 4 is [:left, 1]
+
+Finding move for 5
+move to 5 is 
+
+Finding move for 6
+move to 6 is [:top, 2]
+
+Finding move for 7
+move to 7 is 
+
+Finding move for 8
+move to 8 is 
+
+Finding move for 9
+move to 9 is [:bottom, 1]
+
+Finding move for 10
+move to 10 is 
+
+Finding move for 11
+move to 11 is [:right, 2]
+
+Finding move for 12
+move to 12 is [:top, 0]
+
+Finding move for 13
+move to 13 is 
+
+Finding move for 14
+move to 14 is [:bottom, 2]
+
+Finding move for 15
+move to 15 is 
+

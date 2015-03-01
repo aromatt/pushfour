@@ -39,6 +39,17 @@ module PushFour
     # return false if invalid move
     #
     def apply_move!(player, side, channel)
+      new_pos = try_move(side, channel)
+      if new_pos
+        @board_string[new_pos] = player
+        return new_pos
+      else
+        return false
+      end
+    end
+
+    # returns the resulting position of the move, or false if the move is impossible
+    def try_move(side, channel)
       # TODO store this somewhere else
       dir_map = {
         left: [channel * @columns, 1],
@@ -46,6 +57,7 @@ module PushFour
         bottom: [channel + @columns * (rows - 1), -@columns],
         top: [channel, @columns]
       }
+      #puts "trying move (#{side}, #{channel})"
       start, dir = dir_map[side]
 
       return false if pos_occupied? start
@@ -58,7 +70,6 @@ module PushFour
         cur_pos = next_pos
         next_pos += dir
       end
-      @board_string[cur_pos] =  player
       cur_pos
     end
 
@@ -101,7 +112,7 @@ module PushFour
       poses
     end
 
-    def pos_to_mask(*pos)
+    def pos_to_mask(pos)
       pos.inject(0) { |a, p|  a | (1 << p) }
     end
 
@@ -109,15 +120,25 @@ module PushFour
       pos = x + y * @columns
     end
 
-    # search in an outward spiral for closest neighbor
+    # returns [] of symbols from {:left, :right, :top, :bottom}
+    def touching_edges(pos)
+      edges = []
+      row = row_of(pos)
+      col = column_of(pos)
+      edges << :top if row == 0
+      edges << :bottom if row == @rows - 1
+      edges << :left if col == 0
+      edges << :right if col == @columns - 1
+      edges
+    end
+
     # return distance to closest neighbor (including edges of the board)
     def distance_to(pos)
       puts "computing distance to #{pos}"
+
       # next to an edge?
-      if row_of(pos) == 0 || row_of(pos) == @rows - 1 ||
-        column_of(pos) == 0 || column_of(pos) == @columns - 1
-        return 1
-      end
+      edges = touching_edges(pos)
+      return 1 if edges.any?
 
       # not next to an edge; find the closest neighbor.
       done = false
@@ -132,6 +153,16 @@ module PushFour
         occ_neighbors = neighbors - free_neighbors
         if occ_neighbors.any?
           puts "in distance_to, occ_neighbors at dist #{dist} are #{occ_neighbors}"
+
+          # Verify there is a valid path from an occ_neighbor to pos
+          occ_neighbors.each do |n|
+            paths = raw_shortest_paths(n, pos)
+            valid = true
+            paths.each do |step|
+              valid = find_move(step) # TODO need to pass temp board around
+            end
+          end
+
           break
         end
         dist += 1
@@ -174,7 +205,8 @@ module PushFour
       paths
     end
 
-    # TODO should probably draw a border around the whole board
+    # returns a list of positions (will be empty if none)
+    #
     def neighbors_at_dist(pos, dist)
       puts "neighbors of pos #{pos}, dist #{dist}" if @debug
 
@@ -220,11 +252,66 @@ module PushFour
       return true
     end
 
+    def opposite_side(side)
+      {left: :right, right: :left, top: :bottom, bottom: :top}[side]
+    end
+
+    # a and b are contiguous positions.
+    # e.g., a = 0, b = 1, #=> :right
+    def direction_to(a, b)
+      fail "#{[a, b]} not contiguous!" unless contiguous?([a, b])
+      fail "#{a} == #{b}!" if a == b
+
+      if column_of(a) == column_of(b)
+        return a < b ? :bottom : :top
+      else
+        return a < b ? :right : :left
+      end
+      fail
+    end
+
+    def get_channel(pos, side)
+      channel = ([:left,:right].include? side) ? row_of(pos) : column_of(pos)
+    end
+
     # returns a move that will get a piece into pos.
     # a move is a side (e.g. :left) and channel to get a piece into <pos>
     #
-    def get_move(pos)
-      # TODO
+    def find_move(pos)
+      edges = touching_edges(pos)
+
+      # If a position is next to an edge, try that first
+      if edges.any?
+        edges.each do |e|
+          side = opposite_side(e)
+
+          channel = get_channel(pos, side)
+          if pos == try_move(side, channel)
+            return [side, channel]
+          end
+        end
+      end
+
+      neighbors = neighbors_at_dist(pos, 1)
+      if neighbors.any?
+        neighbors.each do |n|
+
+          # get direction from neighbor to pos, e.g. :left
+          side = direction_to(n, pos)
+          #puts "in find_move, neighbor, pos: #{n}, #{pos}"
+          # TODO remove
+          unless get_channel(pos, side) == get_channel(n, side)
+            fail "neighbor and pos not in same channel"
+          end
+
+          channel = get_channel(pos, side)
+
+          if pos == try_move(side, channel)
+            return [side, channel]
+          end
+        end
+      end
+      nil
     end
 
     # input: two bit-string positions
@@ -263,6 +350,7 @@ module PushFour
 
     # TODO why not just check the board string?
     def pos_occupied?(pos)
+      #puts "Determining if #{pos} is occupied"
       fail "pos #{pos} not on board" unless pos_on_board? pos
       @board_string[pos] != '+'
     end
