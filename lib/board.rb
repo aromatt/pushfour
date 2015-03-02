@@ -1,8 +1,9 @@
 module PushFour
 
-  BLUE_CHAR = 'b'
-  RED_CHAR  = 'r'
-  ROCK_CHAR = '#'
+  BLUE_CHAR  = 'b'
+  RED_CHAR   = 'r'
+  ROCK_CHAR  = '#'
+  EMPTY_CHAR = '+'
 
   class Board
 
@@ -50,7 +51,6 @@ module PushFour
 
     # returns the resulting position of the move, or false if the move is impossible
     def try_move(side, channel)
-      # TODO store this somewhere else
       dir_map = {
         left: [channel * @columns, 1],
         right: [(channel + 1) * @columns - 1, -1],
@@ -73,10 +73,77 @@ module PushFour
       cur_pos
     end
 
+    def winner
+      ['r', 'b'].each do |player|
+        return player if won? player
+      end
+      nil
+    end
+
+    def won?(player)
+      poses_for(player).each do |pos|
+        return true if unocc_win_masks(pos, player).any? do |mask|
+          mask & get_bitmask(player) == mask
+        end
+      end
+      false
+    end
+
+    def done?
+      return true if winner
+      return true if random_move.nil?
+      false
+    end
+
+    def unocc_win_masks(pos, player)
+      raw = raw_win_masks(pos)
+      occ_symbols = ['#', 'r', 'b'] - [player]
+      occ_mask = occ_symbols.reduce(0) do |a, sym|
+        a | get_bitmask(sym)
+      end
+      raw.reject! { |w| w & occ_mask > 0 }
+      raw
+    end
+
+    # valid wins for a particular pos and player
+    def valid_wins(pos, player)
+      unocc = unocc_win_masks(pos, player).map { |w| mask_to_pos(w) }
+      unocc.reject do |win|
+        paths = win.reject { |pos| @board_string[pos] == player }.map { |pos| find_path(pos) }
+        paths.any?(&:nil?)
+      end
+    end
+
+    def valid_win_pathsets(pos, player)
+      debug = false
+      unocc_wins = unocc_win_masks(pos, player).map { |w| mask_to_pos(w) }
+      pathsets = []
+      puts "valid_win_pathsets for #{[pos, player]}: unocc_wins: #{unocc_wins.inspect}" if debug
+      unocc_wins.each do |win|
+        puts " win: #{win}" if debug
+        pathset = nil
+
+        no_self = win.reject { |pos| @board_string[pos] == player }
+        pathset = no_self.map { |pos| find_path(pos) }
+
+        # don't add wins with unreachable positions
+        next if pathset.nil? || pathset.any?(&:nil?)
+
+        # don't add superwins (new pathset is a superset of an existing one)
+        next if pathsets.any? do |existing|
+          pathset.flatten.sort[0..existing.count - 1] == existing.flatten.sort
+        end
+
+        puts "  adding pathset #{pathset.inspect}" if debug
+        pathsets << pathset
+      end
+      pathsets
+    end
+
     # provide a bit-string position
     # returns array of masks representing wins containing <pos>
     #
-    def raw_wins_for(pos)
+    def raw_win_masks(pos)
       wins = []
 
       [
@@ -132,7 +199,7 @@ module PushFour
       edges
     end
 
-    # return distance to closest neighbor (including edges of the board)
+    # return a shortest path from some neighbor or edge to pos
     # return nil if occupied or unreachable
     def find_path(pos)
       debug = false
@@ -380,11 +447,26 @@ module PushFour
       ((0...@columns).cover? x) && ((0...@rows).cover? y)
     end
 
-    # TODO why not just check the board string?
     def pos_occupied?(pos)
       #puts "Determining if #{pos} is occupied. value of pos in board_string is #{@board_string[pos]}"
       fail "pos #{pos} not on board" unless pos_on_board? pos
       @board_string[pos] != '+'
+    end
+
+    def random_move
+      empty_pos.shuffle.each do |pos|
+        move = find_move pos
+        return move if move
+      end
+      nil
+    end
+
+    def num_empty
+      @board_string.count('+')
+    end
+
+    def empty_mask
+      get_bitmask(EMPTY_CHAR)
     end
 
     def occupied_mask
@@ -401,6 +483,26 @@ module PushFour
 
     def rock_mask
       get_bitmask(ROCK_CHAR)
+    end
+
+    def blue_pos
+      mask_to_pos(get_bitmask(BLUE_CHAR))
+    end
+
+    def red_pos
+      mask_to_pos(get_bitmask(RED_CHAR))
+    end
+
+    def rock_pos
+      mask_to_pos(get_bitmask(ROCK_CHAR))
+    end
+
+    def empty_pos
+      mask_to_pos(get_bitmask(EMPTY_CHAR))
+    end
+
+    def poses_for(player)
+      mask_to_pos(get_bitmask(player))
     end
 
     def move_mask(side, channel)
@@ -428,7 +530,6 @@ module PushFour
     end
 
     def add_random_rocks!(num_rocks = nil)
-
       num_rocks ||= Math.sqrt(rows * columns).to_i / 2
 
       num_rocks.times do
