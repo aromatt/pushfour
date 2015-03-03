@@ -10,7 +10,9 @@ player = 1004
 loop do
   games = WebInterface.game_list(player)
   games.each do |game_id|
+
     info = WebInterface.game_info(game_id, player)
+    start = Time.now
     b = Board.new(
       info[:y],
       info[:x],
@@ -23,9 +25,10 @@ loop do
     s = Strategy.new(b, info[:player_color])
     move = s.best_move
     puts "move: #{move}"
+    b.apply_move! info[:player_color], *move
+    puts "#{Time.now - start} sec"
 
     WebInterface.send_move(game_id, player, *move)
-    b.apply_move! info[:player_color], *move
 
     puts b.board_picture
     puts
