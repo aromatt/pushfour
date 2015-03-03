@@ -2,17 +2,12 @@
 require_relative '../lib/strategy'
 include PushFour
 
-size = 6
-win_len = 4
-string =
- '++++++
-  +++#++
-  ++++++
-  +#b+++
-  ++++++
-  +++#++'
+start_time = Time.now
 
-b = Board.new(size, size, win_len, string)
+size = (ARGV[0] || 8).to_i
+win_len = 4
+b = Board.new(size, size, win_len)
+b.add_random_rocks!
 s = Strategy.new(b, 'r')
 player = 'r'
 i = 1
@@ -25,6 +20,8 @@ loop do
   puts move.inspect
   puts "best_move for #{player}: #{move}"
   b.apply_move! player, *move
+  puts "board timing: #{Board.timing.inspect}"
+  puts "strategy timing: #{s.timing.inspect}"
   break if b.done?
   player = s.opponent(player)
   i += 1
@@ -40,3 +37,4 @@ else
 end
 puts
 puts b.board_picture
+puts "\n#{Time.now - start_time} sec"

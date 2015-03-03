@@ -2,10 +2,11 @@ require_relative 'board'
 
 
 # TODO
-#      - log every game it plays
 #      - sometimes you can block by moving to get in someone's way, but not
 #        necessarily in one of their win paths
-#        - actually, it sort of half does this
+#        - actually, it sort of half does this - but need to make sure it
+#          includes these in candidates
+#      - log every game it plays
 #      - search deeper on less certain branches of tree
 #      - include diversity in power score (number of unique positions in
 #        wins. ==> lots of ways to win? or bottleneck?
@@ -17,10 +18,13 @@ module PushFour
   class Strategy
 
     attr_accessor :board, :player
+    attr_reader :timing
+
     def initialize(board, player)
       fail unless board && player
       @board = board
       @player = player
+      @timing = {}
 
       @prob_map = refresh_prob_map
     end
@@ -30,26 +34,26 @@ module PushFour
       {'r' => 'b', 'b' => 'r'}[player]
     end
 
-    def best_move(player = @player)
+    def best_move(player = @player, generous = false)
       debug = false
+      @timing[:best_move] ||= 0
+      start_time = Time.now
+
+      # if first move, consider all positions
+      generous = true if @board.poses_for(player).count == 0
+
       @prob_map = refresh_prob_map
-      candidates = @board.empty_pos #get_candidates(player) #TODO
-      b_temp = Board.new(
-        @board.rows,
-        @board.columns,
-        @board.win_len,
-        @board.board_string
-      )
+      candidates = generous ? @board.empty_pos : get_candidates(player)
       scored = []
       candidates.each do |c|
-        b_temp.board_string = @board.board_string.dup
         puts "candidate #{c}" if debug
-        move = b_temp.find_move(c)
+
+        move = @board.find_move(c)
         next unless move
         puts " found move for c: #{move}" if debug
 
         # try the move and see how the board looks after
-        b_temp.apply_move!(player, *move)
+        b_temp = @board.apply_move(player, *move)
 
         if debug
           puts "considering this state:"
@@ -63,16 +67,20 @@ module PushFour
         scored << [move, score]
       end
       sorted = scored.to_a.sort_by { |c| c[1] }
-      return sorted.last[0] if sorted.any?
 
-      # TODO instead of random, should open up candidate space
-      rando = @board.random_move
-      puts "rando! #{rando}"
-      return rando
+      if sorted.any?
+        @timing[:best_move] += Time.now - start_time
+        return sorted.last[0]
+      else
+        # Didn't find any good candidates; expand search to all empty positions
+        return best_move(player, true)
+      end
     end
 
     def get_candidates(player = @player)
       debug = false
+      @timing[:get_candidates] ||= 0
+      start_time = Time.now
       b = @board
       candidates = []
 
@@ -86,7 +94,8 @@ module PushFour
         puts "candidates:"
         puts b.picture_for_mask b.pos_to_mask candidates
       end
-      # what TODO if there are no pieces on the board, include rocks?
+      @timing[:get_candidates] += Time.now - start_time
+      # what TODO if there are no pieces on the board... include rocks?
       candidates.uniq
     end
 
@@ -101,6 +110,10 @@ module PushFour
 
     def player_power(player = @player, board = @board, lookahead = false)
       debug = false
+
+      @timing[:player_power] ||= 0
+      start_time = Time.now
+
       b = board
       cur_poses = b.poses_for(player)
       puts "power: cur poses: #{cur_poses}" if debug
@@ -113,6 +126,7 @@ module PushFour
       all_pathsets = {}
 
       cur_poses.each do |cur_pos|
+        puts "cur_pos: #{cur_pos}" if debug
 =begin
         wins = b.valid_wins(cur_pos, player)
         wins.each do |win|
@@ -123,6 +137,7 @@ module PushFour
         end
 =end
         pathsets = b.valid_win_pathsets(cur_pos, player)
+        puts " #{pathsets.count} pathsets" if debug
         pathsets.each do |ps|
           unless all_pathsets[ps]
             pathsets_by_pos[cur_pos] << ps
@@ -134,11 +149,11 @@ module PushFour
       #puts "wins: #{wins_by_pos.inspect}" if debug
       win_dists = []
       pathsets_by_pos.each do |cur_pos, pathsets|
-        puts "pathsets for #{cur_pos}" if debug
+        puts " pathsets for #{cur_pos}" if debug
         pathsets.each do |pathset|
-          puts " pathset #{pathset.inspect}" if debug
+          puts "  pathset #{pathset.inspect}" if debug
           win_dist = pathset.flatten.uniq.count
-          puts "  win_dist #{win_dist}" if debug
+          puts "   win_dist #{win_dist}" if debug
           win_dist = [win_dist - 1, 0].max if lookahead
           win_dists << win_dist
         end
@@ -166,6 +181,8 @@ module PushFour
       win_dists << @board.num_empty if win_dists.empty?
 
       puts "dists for player #{player}: #{win_dists}" if debug
+
+      @timing[:player_power] += Time.now - start_time
       dists_to_power(win_dists)
     end
 

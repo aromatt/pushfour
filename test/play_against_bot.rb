@@ -2,16 +2,8 @@
 require_relative '../lib/strategy'
 include PushFour
 
-size = 6
+size = 8
 win_len = 4
-string =
- '++++++
-  +++#++
-  ++++++
-  +#b+++
-  ++++++
-  +++#++'
-
 b = Board.new(size, size, win_len)
 b.add_random_rocks!
 

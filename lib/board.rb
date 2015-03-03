@@ -7,12 +7,20 @@ module PushFour
 
   class Board
 
-    attr_accessor :rows, :columns, :win_len, :board_string
+    attr_accessor :rows, :columns, :win_len
+    attr_reader :board_string # arbitrarily setting this would break cache
 
-    def initialize(rows = 8, columns = 8, win_len = 4, init_string = nil)
+    @@timing = {}
+    def self.timing
+      @@timing
+    end
+
+    def initialize(rows = 8, columns = 8, win_len = 4, init_string = nil, opts = {})
       @win_len = win_len
       @rows = rows
       @columns = columns
+      @no_cache = opts[:no_cache]
+
       if init_string
         init_string.gsub!(/[^rb#\+]|/, '')
         if init_string.length != @rows * @columns
@@ -23,6 +31,15 @@ module PushFour
       else
         @board_string ||= '+' * (rows * columns)
       end
+      flush_cache
+    end
+
+    # needs to be called whenever the board state changes
+    def flush_cache
+      return if @no_cache
+      #puts "flushing cache"
+      @move_cache = {}
+      @path_cache = {}
     end
 
     def board_picture
@@ -42,8 +59,22 @@ module PushFour
     def apply_move!(player, side, channel)
       new_pos = try_move(side, channel)
       if new_pos
+        flush_cache
         @board_string[new_pos] = player
         return new_pos
+      else
+        return false
+      end
+    end
+
+    # returns new board with move applied (does not copy over cache)
+    def apply_move(player, side, channel)
+      new_pos = try_move(side, channel)
+      if new_pos
+        string = @board_string.dup
+        string[new_pos] = player
+        b = Board.new(@rows, @columns, @win_len, string)
+        return b
       else
         return false
       end
@@ -116,6 +147,10 @@ module PushFour
 
     def valid_win_pathsets(pos, player)
       debug = false
+
+      @@timing[:valid_win_pathsets] ||= 0
+      start_time = Time.now
+
       unocc_wins = unocc_win_masks(pos, player).map { |w| mask_to_pos(w) }
       pathsets = []
       puts "valid_win_pathsets for #{[pos, player]}: unocc_wins: #{unocc_wins.inspect}" if debug
@@ -137,6 +172,7 @@ module PushFour
         puts "  adding pathset #{pathset.inspect}" if debug
         pathsets << pathset
       end
+      @@timing[:valid_win_pathsets] += Time.now - start_time
       pathsets
     end
 
@@ -203,8 +239,15 @@ module PushFour
     # return nil if occupied or unreachable
     def find_path(pos)
       debug = false
-      puts "computing distance to #{pos}" if debug
+      puts "finding path to #{pos}" if debug
+      @@timing[:find_path] ||= 0
+      start_time = Time.now
+      start = 0
       return nil if pos_occupied? pos
+
+      unless @no_cache
+        return @path_cache[pos] if @path_cache[pos]
+      end
 
       # next to any edges? then check those first
       edges = touching_edges(pos)
@@ -214,7 +257,7 @@ module PushFour
         channel = get_channel(pos, side)
         return [pos] if try_move(side, channel) == pos
       end
-      puts "no edges worked" if debug
+      puts " no edges worked" if debug
 
       # not next to an edge; find the closest neighbor.
       dist = 1
@@ -226,13 +269,13 @@ module PushFour
         occ_neighbors = neighbors - free_neighbors
 
         # Try building off of occupied positions
-        puts "in distance_to, occ_neighbors at dist #{dist} are #{occ_neighbors}" if debug
+        puts " in find path, occ_neighbors at dist #{dist} are #{occ_neighbors}" if debug
         occ_neighbors.each do |n|
           paths_to_try += raw_shortest_paths(n, pos).map { |p| p.shift; p }
         end
 
         # Try building off free neighbors on edges
-        puts "in distance_to, free_neighbors at dist #{dist} are #{free_neighbors}" if debug
+        puts " in find path, free_neighbors at dist #{dist} are #{free_neighbors}" if debug
         free_neighbors.each do |n|
           if touching_edges(n)
             paths_to_try += raw_shortest_paths(n, pos)
@@ -240,7 +283,16 @@ module PushFour
         end
 
         # Try all the paths we could find at this dist
-        b_temp = Board.new(@rows, @columns, @win_len, @board_string.dup)
+        #b_temp = Board.new(@rows, @columns, @win_len, @board_string.dup)
+        paths_to_try.each do |path|
+          #b_temp.board_string = self.board_string.dup
+          if valid_path? path
+            @path_cache[pos] = path unless @no_cache
+            @@timing[:find_path] += Time.now - start_time
+            return path
+          end
+        end
+=begin
         valid = true
         paths_to_try.each do |path|
           b_temp.board_string = self.board_string.dup
@@ -260,10 +312,31 @@ module PushFour
             return path
           end
         end # each path
+=end
         dist += 1
         break if dist == [@rows, @columns].max
       end # loop do (incr dist)
+      @@timing[:find_path] += Time.now - start_time
       nil
+    end
+
+    def valid_path?(path, b_temp = nil)
+      debug = false
+
+      b_temp ||= Board.new(@rows, @columns, @win_len, @board_string.dup, no_cache: true)
+
+      valid = true
+      puts "valid path? #{path.inspect}" if debug
+      path.each do |step|
+        move = b_temp.find_move(step)
+        puts " move: #{move}" if debug
+        valid &&= move && b_temp.apply_move!('#', *move)
+        unless valid
+          puts "  step #{step} invalid; breaking" if debug
+          break
+        end
+      end # each step
+      return valid
     end
 
     # Takes in two positions
@@ -271,12 +344,24 @@ module PushFour
     # Does not consider if paths consist entirely of valid moves, but
     # does consider obstructions
     def raw_shortest_paths(start, finish)
+      @@timing[:raw_shortest_paths] ||= 0
+
+      @@perms_cache ||= {}
+
+      start_time = Time.now
       x, y = xy_delta(start, finish)
       x_d = (x >= 0 ? 1 : - 1)
       y_d = (y >= 0 ? 1 : - 1)
 
       paths = []
-      permutations = ([:x] * x.abs + [:y] * y.abs).permutation.to_a.uniq.each do |perm|
+      perms = []
+      if @@perms_cache[[x.abs, y.abs]]
+        perms = @@perms_cache[[x.abs, y.abs]]
+      else
+        perms = ([:x] * x.abs + [:y] * y.abs).permutation.to_a.uniq
+        @@perms_cache[[x.abs, y.abs]] = perms
+      end
+      perms.each do |perm|
         puts "perm: #{perm}" if @debug
         path = [start]
         valid = true
@@ -298,6 +383,7 @@ module PushFour
         puts "adding path: #{path.inspect}" if @debug
         paths << path if valid
       end
+      @@timing[:raw_shortest_paths] += Time.now - start_time
       paths
     end
 
@@ -376,6 +462,13 @@ module PushFour
     def find_move(pos)
       debug = false
       puts "  finding move to #{pos}" if debug
+
+      @@timing[:find_move] ||= 0
+      start_time = Time.now
+      unless @no_cache
+        return @move_cache[pos] if @move_cache[pos]
+      end
+
       edges = touching_edges(pos)
 
       # If a position is next to an edge, try that first
@@ -385,7 +478,10 @@ module PushFour
 
           channel = get_channel(pos, side)
           if pos == try_move(side, channel)
-            return [side, channel]
+            move = [side, channel]
+            @move_cache[pos] = move unless @no_cache
+            @@timing[:find_move] += Time.now - start_time
+            return move
           end
         end
       end
@@ -397,6 +493,7 @@ module PushFour
           # get direction from neighbor to pos, e.g. :left
           side = direction_to(n, pos)
           puts "    in find_move, neighbor, pos: #{n}, #{pos}" if debug
+
           # TODO remove
           unless get_channel(pos, side) == get_channel(n, side)
             fail "neighbor and pos not in same channel"
@@ -406,10 +503,12 @@ module PushFour
           puts "    in find_move, channel: #{channel}, side: #{side}" if debug
 
           if pos == try_move(side, channel)
+            @@timing[:find_move] += Time.now - start_time
             return [side, channel]
           end
         end
       end
+      @@timing[:find_move] += Time.now - start_time
       nil
     end
 
