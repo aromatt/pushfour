@@ -2,17 +2,6 @@ require_relative 'board'
 
 
 # TODO
-#      - sometimes you can block by moving to get in someone's way, but not
-#        necessarily in one of their win paths
-#        - actually, it sort of half does this - but need to make sure it
-#          includes these in candidates
-#      - log every game it plays
-#      - search deeper on less certain branches of tree
-#      - include diversity in power score (number of unique positions in
-#        wins. ==> lots of ways to win? or bottleneck?
-#      - consider how in control you are
-#        - how many options does the opponent have
-
 
 module PushFour
   class Strategy
@@ -36,6 +25,7 @@ module PushFour
 
     def best_move(player = @player, generous = false)
       debug = false
+
       @timing[:best_move] ||= 0
       start_time = Time.now
 
@@ -51,7 +41,7 @@ module PushFour
 
         move = @board.find_move(c)
         next unless move
-        puts " found move for c: #{move}" if debug
+        #puts " found move for c: #{move}" if debug
 
         # try the move and see how the board looks after
         b_temp = @board.apply_move(player, *move)
@@ -62,14 +52,17 @@ module PushFour
         end
 
         my_power = player_power(player, b_temp)
+        puts "my_power: #{my_power}" if debug
         opp_power = player_power(opponent(player), b_temp, true)
+        puts "opp_power: #{opp_power}" if debug
+
 
         # Immediately return any move that IS a win, and
         # throw out any candidate that gives an opponent a win
-        if my_power == 1.0 / 0.0
-          return move
-        elsif opp_power == 1.0 / 0.0
+        if opp_power == 1.0 / 0.0
           next
+        elsif my_power == 1.0 / 0.0
+          return move
         end
 
         score = my_power - opp_power
@@ -117,7 +110,7 @@ module PushFour
 
     def refresh_prob_map
       map = {}
-      (1..@board.num_empty).each do |x|
+      (0..@board.num_empty).each do |x|
         map[x] = 1 / (x.to_f**3)
       end
       #map[0] = 1.0 / 0.0 #200_000_000 # TODO
@@ -214,6 +207,8 @@ module PushFour
         score = dists.inject(0.0) { |a,d| a + @prob_map[d] }
       when 'average'
         score = dists.inject(0.0) { |a,d| a + @prob_map[d] } / dists.count
+      when 'min'
+        score = @prob_map[dists.min]
       else
         fail "no style"
       end

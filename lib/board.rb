@@ -96,7 +96,13 @@ module PushFour
       if new_pos
         string = @board_string.dup
         string[new_pos] = player
-        b = self.dup(string)
+        b = Board.new(
+          @rows,
+          @columns,
+          @win_len,
+          string
+        )
+        #b = self.dup(string)
         return b
       else
         return false

@@ -1,0 +1,18 @@
+search deeper than 1
+
+test harness
+
+sometimes you can block by moving to get in someone's way, but not necessarily in one of their win paths
+- actually, it sort of half does this - but need to make sure it includes these in candidates
+
+log every game it plays
+
+search deeper on less certain branches of tree
+
+include diversity in power score (number of unique positions in wins. ==> lots of ways to win? or bottleneck?
+
+consider how in control you are
+- how many options does the opponent have
+
+
+
