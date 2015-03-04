@@ -8,6 +8,7 @@ player = 1004
 
 finished_games = {}
 loop do
+  begin
   games = WebInterface.game_list(player)
   games.each do |game_id|
     info = WebInterface.game_info(game_id, player)
@@ -18,7 +19,6 @@ loop do
       4,
       info[:board]
     )
-
 
     unless b.random_move
       finished_games[game_id] = true
@@ -39,6 +39,10 @@ loop do
 
     puts b.board_picture
     puts
+    $stdout.flush
+  end
+  rescue => e
+    puts e.message
   end
   sleep 1
 end
