@@ -11,8 +11,29 @@ module PushFour
     attr_reader :board_string # arbitrarily setting this would break cache
 
     @@timing = {}
+
+    # Measures how many times we used cache vs not
+    @@caching = Hash.new { |h,k| h[k] = { cached: 0, non: 0 } }
+
+    def self.caching
+      @@caching
+    end
+
     def self.timing
       @@timing
+    end
+
+    # TODO test!
+    def dup(string = nil)
+      Board.new(
+        @rows,
+        @columns,
+        @win_len,
+        string || @board_string.dup,
+        no_cache: @no_cache,
+        move_cache: @move_cache.dup,
+        path_cache: @path_cache.dup
+      )
     end
 
     def initialize(rows = 8, columns = 8, win_len = 4, init_string = nil, opts = {})
@@ -31,7 +52,9 @@ module PushFour
       else
         @board_string ||= '+' * (rows * columns)
       end
-      flush_cache
+
+      @move_cache = opts[:move_cache] || {}
+      @path_cache = opts[:path_cache] || {}
     end
 
     # needs to be called whenever the board state changes
@@ -67,13 +90,13 @@ module PushFour
       end
     end
 
-    # returns new board with move applied (does not copy over cache)
+    # returns new board with move applied
     def apply_move(player, side, channel)
       new_pos = try_move(side, channel)
       if new_pos
         string = @board_string.dup
         string[new_pos] = player
-        b = Board.new(@rows, @columns, @win_len, string)
+        b = self.dup(string)
         return b
       else
         return false
@@ -237,6 +260,10 @@ module PushFour
 
     # return a shortest path from some neighbor or edge to pos
     # return nil if occupied or unreachable
+    #
+    # TODO 1) copy cache when creating copies of boards, because copies are used a lot
+    #      2) instead of flushing cache when board string changes, invalidate intelligently
+    #
     def find_path(pos)
       debug = false
       puts "finding path to #{pos}" if debug
@@ -246,8 +273,13 @@ module PushFour
       return nil if pos_occupied? pos
 
       unless @no_cache
-        return @path_cache[pos] if @path_cache[pos]
+        if @path_cache[pos]
+          @@caching[:find_path][:cached] += 1
+          return @path_cache[pos]
+        end
       end
+
+      @@caching[:find_path][:non] += 1
 
       # next to any edges? then check those first
       edges = touching_edges(pos)
@@ -259,7 +291,8 @@ module PushFour
       end
       puts " no edges worked" if debug
 
-      # not next to an edge; find the closest neighbor.
+      # Not next to an edge; find a path from the closest neighbor.
+      # Consider both occupied neighbors and unoccupied neighbors on edges
       dist = 1
       loop do
         neighbors = neighbors_at_dist(pos, dist)
@@ -292,30 +325,12 @@ module PushFour
             return path
           end
         end
-=begin
-        valid = true
-        paths_to_try.each do |path|
-          b_temp.board_string = self.board_string.dup
-          valid = true
-          puts "verifying path #{path.inspect}" if debug
-          path.each do |step|
-            move = b_temp.find_move(step)
-            puts "  move: #{move}" if debug
-            valid &&= move && b_temp.apply_move!('#', *move)
-            unless valid
-              puts "path #{step} invalid; breaking to next path" if debug
-              break
-            end
-          end # each step
-          if valid
-            puts "found valid path #{path.inspect}" if debug
-            return path
-          end
-        end # each path
-=end
+
+        # Could not find a path at this distance, try farther out
         dist += 1
         break if dist == [@rows, @columns].max
       end # loop do (incr dist)
+
       @@timing[:find_path] += Time.now - start_time
       nil
     end
@@ -323,7 +338,7 @@ module PushFour
     def valid_path?(path, b_temp = nil)
       debug = false
 
-      b_temp ||= Board.new(@rows, @columns, @win_len, @board_string.dup, no_cache: true)
+      b_temp ||= self.dup #Board.new(@rows, @columns, @win_len, @board_string.dup, no_cache: true)
 
       valid = true
       puts "valid path? #{path.inspect}" if debug

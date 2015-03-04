@@ -21,6 +21,7 @@ loop do
   puts "best_move for #{player}: #{move}"
   b.apply_move! player, *move
   puts "board timing: #{Board.timing.inspect}"
+  puts "board caching: #{Board.caching.inspect}"
   puts "strategy timing: #{s.timing.inspect}"
   break if b.done?
   player = s.opponent(player)

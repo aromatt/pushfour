@@ -1,5 +1,8 @@
 require 'net/http'
 
+# UI for a game:
+# http://pushfour.net/index.php?game=2743
+
 def get(url)
   uri = URI(url)
   Net::HTTP.get(uri)

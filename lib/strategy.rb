@@ -44,6 +44,7 @@ module PushFour
 
       @prob_map = refresh_prob_map
       candidates = generous ? @board.empty_pos : get_candidates(player)
+      #candidates = @board.empty_pos
       scored = []
       candidates.each do |c|
         puts "candidate #{c}" if debug
@@ -60,8 +61,18 @@ module PushFour
           puts b_temp.board_picture
         end
 
-        score = player_power(player, b_temp) -
-                player_power(opponent(player), b_temp, true) # lookahead is a hack, right?
+        my_power = player_power(player, b_temp)
+        opp_power = player_power(opponent(player), b_temp, true)
+
+        # Immediately return any move that IS a win, and
+        # throw out any candidate that gives an opponent a win
+        if my_power == 1.0 / 0.0
+          return move
+        elsif opp_power == 1.0 / 0.0
+          next
+        end
+
+        score = my_power - opp_power
 
         puts " score: #{score}" if debug
         scored << [move, score]
@@ -73,7 +84,12 @@ module PushFour
         return sorted.last[0]
       else
         # Didn't find any good candidates; expand search to all empty positions
-        return best_move(player, true)
+        # but don't get caught in endless recursion
+        unless generous
+          return best_move(player, true)
+        else
+          return @board.random_move
+        end
       end
     end
 
@@ -95,7 +111,7 @@ module PushFour
         puts b.picture_for_mask b.pos_to_mask candidates
       end
       @timing[:get_candidates] += Time.now - start_time
-      # what TODO if there are no pieces on the board... include rocks?
+
       candidates.uniq
     end
 
@@ -104,7 +120,7 @@ module PushFour
       (1..@board.num_empty).each do |x|
         map[x] = 1 / (x.to_f**3)
       end
-      map[0] = 200_000_000 # TODO
+      #map[0] = 1.0 / 0.0 #200_000_000 # TODO
       map
     end
 
@@ -187,18 +203,22 @@ module PushFour
     end
 
     def dists_to_power(dists)
+      debug = false
       num_empty = @board.num_empty
 
       style = 'average'
 
+      score = 0
       case style
       when 'additive'
-        return dists.inject(0.0) { |a,d| a + @prob_map[d] }
+        score = dists.inject(0.0) { |a,d| a + @prob_map[d] }
       when 'average'
-        return dists.inject(0.0) { |a,d| a + @prob_map[d] } /
-               dists.count
+        score = dists.inject(0.0) { |a,d| a + @prob_map[d] } / dists.count
+      else
+        fail "no style"
       end
-      fail "shiiiiiit"
+      puts "#{score} is the score for #{dists.inspect}" if debug
+      return score
     end
 
   end
