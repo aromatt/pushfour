@@ -111,7 +111,7 @@ module PushFour
         #b = self.dup(string)
         return b
       else
-        puts "returning false from apply_move"
+        #puts "returning false from apply_move"
         return false
       end
     end
