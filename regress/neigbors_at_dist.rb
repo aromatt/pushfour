@@ -16,6 +16,6 @@ puts
 ].each do |test|
   puts test.join ','
   n = b.neighbors_at_dist(*test)
-  puts b.picture_for_mask(b.pos_to_mask(test[0], *n))
+  puts b.picture_for_mask(b.pos_to_mask([test[0], *n]))
   puts
 end

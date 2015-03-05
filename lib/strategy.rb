@@ -53,7 +53,7 @@ module PushFour
 
         my_power = player_power(player, b_temp)
         puts "my_power: #{my_power}" if debug
-        opp_power = player_power(opponent(player), b_temp, true)
+        opp_power = player_power(opponent(player), b_temp, false) #TODO
         puts "opp_power: #{opp_power}" if debug
 
 

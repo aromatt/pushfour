@@ -20,7 +20,7 @@ puts
   puts test.join ','
   dest = b.apply_delta(*test)
   if dest
-    puts b.picture_for_mask(b.pos_to_mask(test[0], dest))
+    puts b.picture_for_mask(b.pos_to_mask([test[0], dest]))
   else
     puts "off board"
   end

@@ -640,7 +640,7 @@ module PushFour
     end
 
     def get_bitmask(char)
-      @board_string.chars.reverse.inject(0) do |a,c|
+      @board_string.chars.to_a.reverse.inject(0) do |a,c|
         (a << 1) + (c == char ? 1: 0)
       end
     end
