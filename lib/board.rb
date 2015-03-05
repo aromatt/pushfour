@@ -7,13 +7,17 @@ module PushFour
 
   class Board
 
-    attr_accessor :rows, :columns, :win_len
+    attr_accessor :rows, :columns, :win_len, :cache
     attr_reader :board_string # arbitrarily setting this would break cache
 
-    @@timing = {}
+    @@timing = Hash.new { |h,k| h[k] = 0 }
+    @@calls = Hash.new { |h,k| h[k] = 0 }
 
     # Measures how many times we used cache vs not
     @@caching = Hash.new { |h,k| h[k] = { cached: 0, non: 0 } }
+
+    @@perms_cache = {}
+    @@neighbors_cache = {}
 
     def self.caching
       @@caching
@@ -23,6 +27,10 @@ module PushFour
       @@timing
     end
 
+    def self.calls
+      @@calls
+    end
+
     # TODO test!
     def dup(string = nil)
       Board.new(
@@ -30,9 +38,7 @@ module PushFour
         @columns,
         @win_len,
         string || @board_string.dup,
-        no_cache: @no_cache,
-        move_cache: @move_cache.dup,
-        path_cache: @path_cache.dup
+        cache: @cache.dup
       )
     end
 
@@ -40,7 +46,6 @@ module PushFour
       @win_len = win_len
       @rows = rows
       @columns = columns
-      @no_cache = opts[:no_cache]
 
       if init_string
         init_string.gsub!(/[^rb#\+]|/, '')
@@ -53,16 +58,14 @@ module PushFour
         @board_string ||= '+' * (rows * columns)
       end
 
-      @move_cache = opts[:move_cache] || {}
-      @path_cache = opts[:path_cache] || {}
+      @cache = opts[:cache] || Hash.new { |h,k| h[k] = {} }
     end
 
-    # needs to be called whenever the board state changes
     def flush_cache
-      return if @no_cache
       #puts "flushing cache"
-      @move_cache = {}
-      @path_cache = {}
+      @cache[:path] = {}
+      #@cache[:find_move] = {}
+      #@cache[:try_move] = {}
     end
 
     def board_picture
@@ -84,6 +87,7 @@ module PushFour
       if new_pos
         flush_cache
         @board_string[new_pos] = player
+        invalidate_move_cache(new_pos)
         return new_pos
       else
         return false
@@ -102,25 +106,60 @@ module PushFour
           @win_len,
           string
         )
+        b.flush_cache
+        b.invalidate_move_cache(new_pos)
         #b = self.dup(string)
         return b
       else
+        puts "returning false from apply_move"
         return false
+      end
+    end
+
+    def invalidate_move_cache(pos)
+      col = column_of pos
+      row = row_of pos
+
+      [:right, :left].each do |side|
+        @cache[:try_move][[side, row]] = nil
+      end
+      [:top, :bottom].each do |side|
+        @cache[:try_move][[side, col]] = nil
+      end
+      row_offset = @columns * row
+      @columns.times do |i|
+        @cache[:find_move][i + row_offset] = nil
+      end
+      @rows.times do |i|
+        @cache[:find_move][col + i * @columns] = nil
       end
     end
 
     # returns the resulting position of the move, or false if the move is impossible
     def try_move(side, channel)
+      start_time = Time.now
+      @@calls[:try_move] += 1
       dir_map = {
         left: [channel * @columns, 1],
         right: [(channel + 1) * @columns - 1, -1],
         bottom: [channel + @columns * (rows - 1), -@columns],
         top: [channel, @columns]
       }
+      cached = @cache[:try_move][[side, channel]]
+      if cached
+        @@timing[:try_move] += Time.now - start_time
+        return cached
+      end
+
       #puts "trying move (#{side}, #{channel})"
       start, dir = dir_map[side]
 
-      return false if pos_occupied? start
+      if pos_occupied? start
+        @@timing[:try_move] += Time.now - start_time
+        @cache[:try_move][[side, channel]] = false
+        return false
+      end
+
       cur_pos = start
       next_pos = start + dir
       loop do
@@ -130,7 +169,8 @@ module PushFour
         cur_pos = next_pos
         next_pos += dir
       end
-      cur_pos
+      @@timing[:try_move] += Time.now - start_time
+      @cache[:try_move][[side, channel]] = cur_pos
     end
 
     def winner
@@ -176,8 +216,7 @@ module PushFour
 
     def valid_win_pathsets(pos, player)
       debug = false
-
-      @@timing[:valid_win_pathsets] ||= 0
+      @@calls[:valid_win_pathsets] += 1
       start_time = Time.now
 
       unocc_wins = unocc_win_masks(pos, player).map { |w| mask_to_pos(w) }
@@ -273,16 +312,15 @@ module PushFour
     def find_path(pos)
       debug = false
       puts "finding path to #{pos}" if debug
-      @@timing[:find_path] ||= 0
+      @@calls[:find_path] += 1
       start_time = Time.now
       start = 0
       return nil if pos_occupied? pos
 
-      unless @no_cache
-        if @path_cache[pos]
-          @@caching[:find_path][:cached] += 1
-          return @path_cache[pos]
-        end
+      if @cache[:path][pos]
+        @@caching[:find_path][:cached] += 1
+        @@timing[:find_path] += Time.now - start_time
+        return @cache[:path][pos]
       end
 
       @@caching[:find_path][:non] += 1
@@ -326,7 +364,7 @@ module PushFour
         paths_to_try.each do |path|
           #b_temp.board_string = self.board_string.dup
           if valid_path? path
-            @path_cache[pos] = path unless @no_cache
+            @cache[:path][pos] = path
             @@timing[:find_path] += Time.now - start_time
             return path
           end
@@ -343,8 +381,9 @@ module PushFour
 
     def valid_path?(path, b_temp = nil)
       debug = false
-
-      b_temp ||= self.dup #Board.new(@rows, @columns, @win_len, @board_string.dup, no_cache: true)
+      @@calls[:valid_path?] += 1
+      start_time = Time.now
+      b_temp ||= self.dup
 
       valid = true
       puts "valid path? #{path.inspect}" if debug
@@ -357,6 +396,8 @@ module PushFour
           break
         end
       end # each step
+
+      @@timing[:valid_path?] += Time.now - start_time
       return valid
     end
 
@@ -365,9 +406,8 @@ module PushFour
     # Does not consider if paths consist entirely of valid moves, but
     # does consider obstructions
     def raw_shortest_paths(start, finish)
-      @@timing[:raw_shortest_paths] ||= 0
+      @@calls[:raw_shortest_paths] += 1
 
-      @@perms_cache ||= {}
 
       start_time = Time.now
       x, y = xy_delta(start, finish)
@@ -412,6 +452,14 @@ module PushFour
     #
     def neighbors_at_dist(pos, dist)
       puts "neighbors of pos #{pos}, dist #{dist}" if @debug
+      start_time = Time.now
+      @@calls[:neighbors_at_dist] += 1
+      cached = @@neighbors_cache[[pos, dist]]
+      if cached
+        @@caching[:neighbors_at_dist][:cached] += 1
+        @@timing[:neighbors_at_dist] += Time.now - start_time
+        return cached
+      end
 
       # TODO calculate these more efficiently?
 
@@ -424,7 +472,10 @@ module PushFour
         neighbors << apply_delta(pos, -a, -b)
         neighbors << apply_delta(pos, b, -a)
       end
-      neighbors.compact
+      @@caching[:neighbors_at_dist][:non] += 1
+      @@timing[:neighbors_at_dist] += Time.now - start_time
+      res = neighbors.compact
+      @@neighbors_cache[[pos, dist]] = res
     end
 
     def picture_for_mask(mask)
@@ -484,11 +535,15 @@ module PushFour
       debug = false
       puts "  finding move to #{pos}" if debug
 
-      @@timing[:find_move] ||= 0
+      @@calls[:find_move] += 1
       start_time = Time.now
-      unless @no_cache
-        return @move_cache[pos] if @move_cache[pos]
+
+      if @cache[:find_move][pos]
+        @@timing[:find_move] += Time.now - start_time
+        @@caching[:find_move][:cached] += 1
+        return @cache[:find_move][pos]
       end
+      @@caching[:find_move][:non] += 1
 
       edges = touching_edges(pos)
 
@@ -500,7 +555,7 @@ module PushFour
           channel = get_channel(pos, side)
           if pos == try_move(side, channel)
             move = [side, channel]
-            @move_cache[pos] = move unless @no_cache
+            @cache[:find_move][pos] = move
             @@timing[:find_move] += Time.now - start_time
             return move
           end
@@ -525,7 +580,9 @@ module PushFour
 
           if pos == try_move(side, channel)
             @@timing[:find_move] += Time.now - start_time
-            return [side, channel]
+            move = [side, channel]
+            @cache[:find_move][pos] = move
+            return move
           end
         end
       end

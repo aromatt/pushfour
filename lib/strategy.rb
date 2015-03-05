@@ -37,7 +37,7 @@ module PushFour
       #candidates = @board.empty_pos
       scored = []
       candidates.each do |c|
-        puts "candidate #{c}" if debug
+        #puts "candidate #{c}" if debug
 
         move = @board.find_move(c)
         next unless move
@@ -52,9 +52,9 @@ module PushFour
         end
 
         my_power = player_power(player, b_temp)
-        puts "my_power: #{my_power}" if debug
-        opp_power = player_power(opponent(player), b_temp, false) #TODO
-        puts "opp_power: #{opp_power}" if debug
+        puts " my_power: #{my_power}" if debug
+        opp_power = player_power(opponent(player), b_temp, true) #TODO
+        puts " opp_power: #{opp_power}" if debug
 
 
         # Immediately return any move that IS a win, and
@@ -119,13 +119,13 @@ module PushFour
 
     def player_power(player = @player, board = @board, lookahead = false)
       debug = false
-
+      puts "computing power for player #{player}" if debug
       @timing[:player_power] ||= 0
       start_time = Time.now
 
       b = board
       cur_poses = b.poses_for(player)
-      puts "power: cur poses: #{cur_poses}" if debug
+      #puts "power: cur poses: #{cur_poses}" if debug
 
       #wins_by_pos = Hash.new { |h,k| h[k] = [] }
       pathsets_by_pos = Hash.new { |h,k| h[k] = [] }
@@ -135,7 +135,7 @@ module PushFour
       all_pathsets = {}
 
       cur_poses.each do |cur_pos|
-        puts "cur_pos: #{cur_pos}" if debug
+        #puts "cur_pos: #{cur_pos}" if debug
 =begin
         wins = b.valid_wins(cur_pos, player)
         wins.each do |win|
@@ -158,11 +158,11 @@ module PushFour
       #puts "wins: #{wins_by_pos.inspect}" if debug
       win_dists = []
       pathsets_by_pos.each do |cur_pos, pathsets|
-        puts " pathsets for #{cur_pos}" if debug
+        #puts " pathsets for #{cur_pos}" if debug
         pathsets.each do |pathset|
-          puts "  pathset #{pathset.inspect}" if debug
+          #puts "  pathset #{pathset.inspect}" if debug
           win_dist = pathset.flatten.uniq.count
-          puts "   win_dist #{win_dist}" if debug
+          #puts "   win_dist #{win_dist}" if debug
           win_dist = [win_dist - 1, 0].max if lookahead
           win_dists << win_dist
         end
@@ -189,10 +189,11 @@ module PushFour
       # pitiful. no wins in sight.
       win_dists << @board.num_empty if win_dists.empty?
 
-      puts "dists for player #{player}: #{win_dists}" if debug
 
       @timing[:player_power] += Time.now - start_time
-      dists_to_power(win_dists)
+      score = dists_to_power(win_dists)
+      puts " dists for player #{player}: #{win_dists}, score: #{score}" if debug
+      score
     end
 
     def dists_to_power(dists)

@@ -21,6 +21,7 @@ loop do
   puts "best_move for #{player}: #{move}"
   b.apply_move! player, *move
   puts "board timing: #{Board.timing.inspect}"
+  puts "board calls: #{Board.calls.inspect}"
   puts "board caching: #{Board.caching.inspect}"
   puts "strategy timing: #{s.timing.inspect}"
   break if b.done?
@@ -36,6 +37,13 @@ if b.winner
 else
   puts "cat's game"
 end
+
+puts "Timing:"
+Board.timing.map do |k,v|
+  c = Board.calls[k]
+  puts "#{k}: #{v.to_f.round(0)}s, #{c} calls, #{(v.to_f / c * 1000000).round(3)} us per call"
+end
+
 puts
 puts b.board_picture
 puts "\n#{Time.now - start_time} sec"
