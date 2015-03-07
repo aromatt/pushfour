@@ -528,6 +528,24 @@ module PushFour
       channel = ([:left,:right].include? side) ? row_of(pos) : column_of(pos)
     end
 
+    # Returns hash { move => pos, ... } where move is array [side, channel]
+    def all_moves
+      moves = {}
+      (0...@columns).each do |chan|
+        [:top, :bottom].each do |side|
+          tried = try_move(side, chan)
+          moves[[side, chan]] = tried if tried
+        end
+      end
+      (0...@rows).each do |chan|
+        [:left, :right].each do |side|
+          tried = try_move(side, chan)
+          moves[[side, chan]] = tried if tried
+        end
+      end
+      moves
+    end
+
     # returns a move that will get a piece into pos.
     # a move is a side (e.g. :left) and channel to get a piece into <pos>
     #

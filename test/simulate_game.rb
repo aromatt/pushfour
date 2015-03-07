@@ -1,5 +1,5 @@
 #! /usr/bin/env ruby
-require_relative '../lib/strategy'
+require_relative '../lib/strategy/smart_shallow'
 include PushFour
 
 start_time = Time.now
@@ -8,7 +8,7 @@ size = (ARGV[0] || 8).to_i
 win_len = 4
 b = Board.new(size, size, win_len)
 b.add_random_rocks!
-s = Strategy.new(b, 'r')
+s = SmartShallowStrategy.new(b, 'r')
 player = 'r'
 i = 1
 loop do
