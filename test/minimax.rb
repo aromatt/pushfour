@@ -13,15 +13,16 @@ win_len = 4
   ++++++
   ++++++',
 ].each do |string|
-  b = Board.new(size, size, win_len, string)
+  # For minimax, the Strategy uses a plain board string, instead of a Baord
+  b = Board.new(size, size, win_len, string).board_string
+
   s = MinimaxStrategy.new(b, 'r')
+
   puts "#################################"
-  puts b.board_picture
+  puts picture(b, size, size)
 
   ['r', 'b'].each do |player|
     puts "player #{player}"
-    s.minimax(player)
-    #move = s.best_move(player)
-    #puts "best_move for #{player}: #{move}"
+    s.minimax(b, size, size, player)
   end
 end
