@@ -144,28 +144,6 @@ module PushFour
       return score
     end
 
-    def get_candidates(player = @player)
-      debug = false
-      @timing[:get_candidates] ||= 0
-      start_time = Time.now
-      b = @board
-      candidates = []
-
-      [player, opponent(player)].each do |role|
-        candidates += b.poses_for(role).map do |pos|
-          b.valid_win_pathsets(pos, role)
-        end.flatten
-      end
-
-      if debug
-        puts "candidates:"
-        puts b.picture_for_mask b.pos_to_mask candidates
-      end
-      @timing[:get_candidates] += Time.now - start_time
-
-      candidates.uniq
-    end
-
     def refresh_prob_map
       map = {}
       (0..@board.num_empty).each do |x|

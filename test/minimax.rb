@@ -2,6 +2,7 @@
 require_relative '../lib/strategy/minimax'
 
 include PushFour
+include BoardLight
 
 size = 6
 win_len = 4
@@ -18,11 +19,19 @@ win_len = 4
 
   s = MinimaxStrategy.new(b, 'r')
 
-  puts "#################################"
-  puts picture(b, size, size)
-
-  ['r', 'b'].each do |player|
+  player = 'b'
+  loop do
+    puts "#################################"
+    puts picture(b, size, size)
     puts "player #{player}"
-    s.minimax(b, size, size, player)
+    move = s.best_move(b, size, size, player)
+    #move = [:top, 4]
+    if !move
+      break
+    end
+    puts "best move for player #{player}: #{move}"
+    puts picture(b, size, size)
+    apply_move!(b, size, size, player, *move)
+    player = s.opponent(player)
   end
 end
