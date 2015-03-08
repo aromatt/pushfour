@@ -9,8 +9,8 @@ win_len = 4
 [
  '++++++
   ++++++
-  +#rb++
-  +#rb++
+  +#++++
+  +#++++
   ++++++
   ++++++',
 ].each do |string|
@@ -19,19 +19,19 @@ win_len = 4
 
   s = MinimaxStrategy.new(b, 'r')
 
-  player = 'b'
+  player = 'r'
+  #1.times do
   loop do
     puts "#################################"
     puts picture(b, size, size)
     puts "player #{player}"
     move = s.best_move(b, size, size, player)
-    #move = [:top, 4]
     if !move
       break
     end
     puts "best move for player #{player}: #{move}"
-    puts picture(b, size, size)
     apply_move!(b, size, size, player, *move)
+    puts picture(b, size, size)
     player = s.opponent(player)
   end
 end

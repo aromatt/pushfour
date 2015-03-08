@@ -7,7 +7,7 @@ module PushFour
     include BoardLight
 
     MAX_SCORE = 10
-    MAX_DEPTH = 3
+    MAX_DEPTH = 4
 
     def initialize(*args)
       super
@@ -19,7 +19,7 @@ module PushFour
         #puts "best_move: done"
         return false
       else
-        return minimax(b, rows, cols, player, 0, true)
+        return minimax(b, rows, cols, player, 0, false)
       end
     end
 
@@ -27,9 +27,8 @@ module PushFour
       debug = false
       @minimax_call_count += 1
 
-      if depth == 2 && debug
+      if debug
         puts "#minimax with depth #{depth}, count #{@minimax_call_count}"
-
         puts picture b, rows, cols
       end
 
@@ -38,7 +37,7 @@ module PushFour
         if depth == 0
           return false
         else
-          return score(board, rows, cols, player)
+          return score(b, rows, cols, player, depth)
         end
       end
 
@@ -47,8 +46,9 @@ module PushFour
         return 0
       end
 
-      min_or_max = (player == @player ? :max : :min)
+      min_or_max = (depth.even? ? :max : :min)
 
+      # Get a list of candidate moves
       if depth < MAX_DEPTH + 1 || prune
         moves = {}
         b_obj = Board.new(rows, cols, WIN_LEN, b.dup)
@@ -72,13 +72,13 @@ module PushFour
       puts "depth #{depth} moves: #{moves.inspect}" if debug
       puts "depth #{depth} #{moves.count} moves" if depth == 0 && debug
       moves.each do |move, pos|
-        puts "depth #{depth} move #{move}" if depth == 0 && debug
+        puts "depth #{depth} move #{move}" if depth == 0 #&& debug
         b_temp = b.dup
 
         # Apply the move; skip if invalid move
         next unless apply_move!(b_temp, rows, cols, player, *move)
 
-        score = score(b_temp, rows, cols, player)
+        score = score(b_temp, rows, cols, player, depth)
 
         # Immediately return if this is a winning move
         if score == MAX_SCORE
@@ -100,16 +100,21 @@ module PushFour
 
       # Return the max (or min) score
       if depth == 0
-        return scores.keys.max { |m| scores[m] }
+        puts scores.inspect
+        return scores.keys.max { |a,b| scores[a] <=> scores[b] }
       else
         return scores.values.send(min_or_max)
       end
     end
 
-    def score(board, rows, cols, player)
-      return MAX_SCORE if won?(board, rows, cols, player)
-      return -MAX_SCORE if won?(board, rows, cols, opponent(player))
-      0
+    def score(board, rows, cols, player, depth)
+      winner = winner(board, rows, cols)
+      return 0 unless winner
+
+      score = MAX_SCORE
+      score = -score if winner == opponent(player)
+      score = -score if depth.odd?
+      score
     end
   end
 end
