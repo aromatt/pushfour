@@ -4,15 +4,22 @@ require_relative '../lib/strategy/minimax'
 include PushFour
 include BoardLight
 
-size = 6
+size = 5
 win_len = 4
 [
+=begin
  '++++++
   ++++++
-  +#++++
-  +#++++
+  ##b+++
+  +#b+++
   ++++++
   ++++++',
+=end
+ '+++++
+  +#b++
+  +#b++
+  +++++
+  +++++',
 ].each do |string|
   # For minimax, the Strategy uses a plain board string, instead of a Baord
   b = Board.new(size, size, win_len, string).board_string
@@ -34,4 +41,7 @@ win_len = 4
     puts picture(b, size, size)
     player = s.opponent(player)
   end
+
+  puts "\nWinner: #{winner(b, size, size)}"
 end
+

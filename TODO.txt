@@ -1,6 +1,18 @@
-search deeper than 1
+for shallow search, consider overlap in win paths - if multiple win paths of 2 share a square, then it's a trap!
 
-test harness
+add alpha-beta to minimax
+
+for minimax, need a fast but reasonable heuristic for boards besides just wins
+  - longest run
+  - favorability (as used in shallow approach) (slow)
+  - ?
+
+
+
+
+
+
+OLD:
 
 sometimes you can block by moving to get in someone's way, but not necessarily in one of their win paths
 - actually, it sort of half does this - but need to make sure it includes these in candidates
