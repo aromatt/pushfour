@@ -32,10 +32,10 @@ module PushFour
         # try the move and see how the board looks after
         b_temp = @board.apply_move(player, *move)
 
-        if debug
-          puts "considering this state:"
-          puts b_temp.board_picture
-        end
+        #if debug
+          #puts "considering this state:"
+          #puts b_temp.board_picture
+        #end
 
         my_power = player_power(player, b_temp)
         puts " my_power: #{my_power}" if debug
@@ -80,7 +80,7 @@ module PushFour
 
       b = board
       cur_poses = b.poses_for(player)
-      #puts "power: cur poses: #{cur_poses}" if debug
+      puts "power: cur poses: #{cur_poses}" if debug
 
       #wins_by_pos = Hash.new { |h,k| h[k] = [] }
       pathsets_by_pos = Hash.new { |h,k| h[k] = [] }
@@ -91,7 +91,7 @@ module PushFour
 
       cur_poses.each do |cur_pos|
         pathsets = b.valid_win_pathsets(cur_pos, player)
-        puts " #{pathsets.count} pathsets" if debug
+        puts " pos #{cur_pos}: #{pathsets.count} pathsets" if debug
         pathsets.each do |ps|
           unless all_pathsets[ps]
             pathsets_by_pos[cur_pos] << ps
@@ -100,14 +100,14 @@ module PushFour
         end
       end
 
-      #puts "wins: #{wins_by_pos.inspect}" if debug
+      puts "wins: #{wins_by_pos.inspect}" if debug
       win_dists = []
       pathsets_by_pos.each do |cur_pos, pathsets|
-        #puts " pathsets for #{cur_pos}" if debug
+        puts " win pathsets for #{cur_pos}" if debug
         pathsets.each do |pathset|
-          #puts "  pathset #{pathset.inspect}" if debug
+          puts "  win pathset #{pathset.inspect}" if debug
           win_dist = pathset.flatten.uniq.count
-          #puts "   win_dist #{win_dist}" if debug
+          puts "   win_dist #{win_dist}" if debug
           win_dist = [win_dist - 1, 0].max if lookahead
           win_dists << win_dist
         end

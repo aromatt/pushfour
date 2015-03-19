@@ -116,6 +116,12 @@ module PushFour
       end
     end
 
+    def board_string_write(pos, player)
+      @board_string[pos] = player
+      invalidate_move_cache(pos)
+    end
+
+    # use this whenever
     def invalidate_move_cache(pos)
       col = column_of pos
       row = row_of pos
@@ -223,11 +229,30 @@ module PushFour
       pathsets = []
       puts "valid_win_pathsets for #{[pos, player]}: unocc_wins: #{unocc_wins.inspect}" if debug
       unocc_wins.each do |win|
-        puts " win: #{win}" if debug
         pathset = nil
 
+        # don't need to find paths to positions that we already have
         no_self = win.reject { |pos| @board_string[pos] == player }
-        pathset = no_self.map { |pos| find_path(pos) }
+        puts " win: #{no_self}" if debug
+
+        # find a path to each position in the win
+        pathset = []
+        b_temp = self.dup # TODO optimize
+        poses_in_paths = []
+        valid = true
+        no_self.each do |pos|
+          path = b_temp.find_path(pos)
+          if path.nil?
+            valid = false
+            break
+          end
+          path.reject! { |pos| poses_in_paths.include? pos }
+          poses_in_paths += path
+          pathset << path
+          b_temp.board_string_write(pos, player)
+        end
+
+        next unless valid
 
         # don't add wins with unreachable positions
         next if pathset.nil? || pathset.any?(&:nil?)
@@ -315,12 +340,14 @@ module PushFour
       @@calls[:find_path] += 1
       start_time = Time.now
       start = 0
-      return nil if pos_occupied? pos
+      if pos_occupied? pos
+        return nil
+      end
 
       if @cache[:path][pos]
         @@caching[:find_path][:cached] += 1
         @@timing[:find_path] += Time.now - start_time
-        return @cache[:path][pos]
+        return @cache[:path][pos].dup
       end
 
       @@caching[:find_path][:non] += 1
@@ -331,7 +358,8 @@ module PushFour
         puts "edge #{edge}" if debug
         side = opposite_side(edge)
         channel = get_channel(pos, side)
-        return [pos] if try_move(side, channel) == pos
+        return_val = [pos] if try_move(side, channel) == pos
+        return return_val if return_val
       end
       puts " no edges worked" if debug
 
@@ -364,9 +392,9 @@ module PushFour
         paths_to_try.each do |path|
           #b_temp.board_string = self.board_string.dup
           if valid_path? path
-            @cache[:path][pos] = path
+            @cache[:path][pos] = path.dup
             @@timing[:find_path] += Time.now - start_time
-            return path
+            return path.dup
           end
         end
 
@@ -401,7 +429,6 @@ module PushFour
       return valid
     end
 
-    # Takes in two positions
     # Returns an array of paths (which are each an array of positions)
     # Does not consider if paths consist entirely of valid moves, but
     # does consider obstructions
@@ -559,7 +586,7 @@ module PushFour
       if @cache[:find_move][pos]
         @@timing[:find_move] += Time.now - start_time
         @@caching[:find_move][:cached] += 1
-        return @cache[:find_move][pos]
+        return @cache[:find_move][pos].dup
       end
       @@caching[:find_move][:non] += 1
 
@@ -573,7 +600,7 @@ module PushFour
           channel = get_channel(pos, side)
           if pos == try_move(side, channel)
             move = [side, channel]
-            @cache[:find_move][pos] = move
+            @cache[:find_move][pos] = move.dup
             @@timing[:find_move] += Time.now - start_time
             return move
           end
@@ -599,7 +626,7 @@ module PushFour
           if pos == try_move(side, channel)
             @@timing[:find_move] += Time.now - start_time
             move = [side, channel]
-            @cache[:find_move][pos] = move
+            @cache[:find_move][pos] = move.dup
             return move
           end
         end
